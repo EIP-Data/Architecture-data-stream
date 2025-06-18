@@ -1,0 +1,43 @@
+name: Mirror to Datalyz Repo
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Copy workflows
+        run: |
+          mkdir -p workflows
+          cp -r .github/workflows/*.yml workflows/
+
+      - name: Push to Datalyz repo
+        run: |
+          git config --global user.email "datalyz-mirror-bot@example.com"
+          git config --global user.name "DATALYZ Mirror Bot"
+
+          git clone https://x-access-token:${{ secrets.CYP_CI_MIRROR_KEY }}@github.com/EIP-Data/Datalyz.git
+          cd Datalyz
+
+          TARGET_DIR="documentation"
+
+          mkdir -p $TARGET_DIR
+          rsync -av --delete ${{ github.workspace }}/ $TARGET_DIR/ --exclude .git --exclude .github/workflows
+
+          mkdir -p .github/workflows
+
+          for file in ${{ github.workspace }}/workflows/*.yml; do
+            filename=$(basename "$file")
+            cp "$file" ".github/workflows/${TARGET_DIR}_${filename}"
+          done
+
+          git add .
+          git commit -m "Mirror $TARGET_DIR on ${{ github.sha }}" || echo "No changes"
+          git push
